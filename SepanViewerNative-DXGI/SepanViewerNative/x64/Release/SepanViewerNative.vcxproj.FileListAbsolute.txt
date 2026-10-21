@@ -1,0 +1,14 @@
+C:\Users\1234\Downloads\SepanViewerNative-DXGI-overlay-config\x64\Release\opencv_core4.dll
+C:\Users\1234\Downloads\SepanViewerNative-DXGI-overlay-config\x64\Release\z.dll
+C:\Users\1234\Downloads\SepanViewerNative-DXGI-overlay-config\x64\Release\opencv_imgcodecs4.dll
+C:\Users\1234\Downloads\SepanViewerNative-DXGI-overlay-config\x64\Release\opencv_imgproc4.dll
+C:\Users\1234\Downloads\SepanViewerNative-DXGI-overlay-config\x64\Release\jpeg62.dll
+C:\Users\1234\Downloads\SepanViewerNative-DXGI-overlay-config\x64\Release\libwebpdecoder.dll
+C:\Users\1234\Downloads\SepanViewerNative-DXGI-overlay-config\x64\Release\libwebp.dll
+C:\Users\1234\Downloads\SepanViewerNative-DXGI-overlay-config\x64\Release\libsharpyuv.dll
+C:\Users\1234\Downloads\SepanViewerNative-DXGI-overlay-config\x64\Release\libwebpdemux.dll
+C:\Users\1234\Downloads\SepanViewerNative-DXGI-overlay-config\x64\Release\libwebpmux.dll
+C:\Users\1234\Downloads\SepanViewerNative-DXGI-overlay-config\x64\Release\libpng16.dll
+C:\Users\1234\Downloads\SepanViewerNative-DXGI-overlay-config\x64\Release\tiff.dll
+C:\Users\1234\Downloads\SepanViewerNative-DXGI-overlay-config\x64\Release\liblzma.dll
+C:\Users\1234\Downloads\SepanViewerNative-DXGI-overlay-config\SepanViewerNative\x64\Release\SepanVie.278F025E.Up2Date
