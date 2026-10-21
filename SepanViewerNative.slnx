@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="SepanViewerNative/SepanViewerNative.vcxproj" Id="c0b65692-8bd6-4ecf-bcc9-6d596150767e" />
+</Solution>
