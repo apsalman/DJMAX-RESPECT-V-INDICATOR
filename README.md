@@ -13,7 +13,9 @@
   <b>DJMAX RESPECT V 전용 초경량 독립형 실시간 세부판정 인디케이터 (Hit Error Bar)</b><br>
   OBS나 웹 브라우저, 무거운 파이썬 가상환경 없이 <b>단일 C++ 실행 파일(.exe)</b>만으로 게임 화면 위에 직접 판정 눈금자를 띄웁니다.
 </p>
-  <img src="https://github.com/apsalman/DJMAX-RESPECT-V-INDICATOR/blob/main/djmax%20indicator.gif" style="display: block; margin: 0 auto;" />
+  <p align="center">
+  <img src="https://github.com/apsalman/DJMAX-RESPECT-V-INDICATOR/blob/main/djmax%20indicator.gif" />
+  </p>
 ---
 
 ## 💡 프로젝트 소개 (About)
