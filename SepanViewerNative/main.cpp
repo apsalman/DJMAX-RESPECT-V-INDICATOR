@@ -59,6 +59,8 @@ int main() {
     overlay.init(hInst, cfg.overlayX, cfg.overlayY, cfg.maxMarkers, cfg.avgSamples);
     overlay.showAvg = cfg.showAvg;
     overlay.showEarlyLate = cfg.showEarlyLate;
+    overlay.capture = cfg.capture;
+    SetWindowDisplayAffinity(overlay.hwnd, cfg.capture ? WDA_NONE : WDA_EXCLUDEFROMCAPTURE);
     overlay.perfectRangeR = cfg.perfectRangeR;
     overlay.perfectRangeG = cfg.perfectRangeG;
     overlay.perfectRangeB = cfg.perfectRangeB;
