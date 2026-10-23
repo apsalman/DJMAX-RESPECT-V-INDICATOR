@@ -96,6 +96,7 @@ sideColor=default           # 사이드 키 색상 (마찬가지)
 showAVG=false               # 평균 ms 우측 상단에 표시 true 면 표시 false 면 미표시
 showEarlyLate=true          # 위에 Early 0ms Late 0ms 표시
 perfectRangeColor=0,255,120 # 퍼펙트 판정 범위 색상 지금 이건 초록색 일 듯 아마도
+Capture=true                # OBS 나 스크린샷과 같은 캡처도구에 오버레이가 캡처되도록 처리
 overlayX=809                # 눈금자 띄울 x좌표
 overlayY=199                # 눈금자 띄울 y좌표
 
