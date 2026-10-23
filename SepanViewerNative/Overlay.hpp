@@ -39,6 +39,7 @@ public:
     bool isInteractive = false;
     bool showAvg = true;
     bool showEarlyLate = true;
+    bool capture = true;
     int perfectRangeR = 0;
     int perfectRangeG = 255;
     int perfectRangeB = 120;
@@ -89,7 +90,9 @@ public:
         );
 
         SetLayeredWindowAttributes(hwnd, RGB(1, 2, 3), 0, LWA_COLORKEY);
-        SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE);
+        // Capture=true: allow OBS/screenshots to include the overlay.
+        // Capture=false: ask supported Windows capture APIs to exclude this window.
+        SetWindowDisplayAffinity(hwnd, capture ? WDA_NONE : WDA_EXCLUDEFROMCAPTURE);
         ShowWindow(hwnd, SW_SHOW);
     }
 
