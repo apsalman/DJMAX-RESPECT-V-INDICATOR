@@ -14,7 +14,7 @@
   OBS나 웹 브라우저, 무거운 파이썬 가상환경 없이 <b>단일 C++ 실행 파일(.exe)</b>만으로 게임 화면 위에 직접 판정 눈금자를 띄웁니다.
 </p>
   <p align="center">
-  <img src="https://github.com/apsalman/DJMAX-RESPECT-V-INDICATOR/blob/main/djmax%20indicator.webp" />
+  <img src="https://github.com/apsalman/DJMAX-RESPECT-V-INDICATOR/blob/main/Indicator.webp" />
   </p>
 
 ---
