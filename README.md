@@ -97,6 +97,9 @@ showAVG=false               # 평균 ms 우측 상단에 표시 true 면 표시 
 showEarlyLate=true          # 위에 Early 0ms Late 0ms 표시
 perfectRangeColor=0,255,120 # 퍼펙트 판정 범위 색상 지금 이건 초록색 일 듯 아마도
 Capture=true                # OBS 나 스크린샷과 같은 캡처도구에 오버레이가 캡처되도록 처리
+showFastSlowCount=true      # 레인별 Fast Slow 개수 오버레이 표시
+fastSlowY=690               # 패슬 오버레이 y좌표 위치(x는 키별로 고정임)
+fastSlowThresholdMs=40      # 패슬 개수 카운트할 ms 차이(42는 노멀, 21은 하판, 10은 맥저정도일 듯. 우수리 떼고)
 overlayX=809                # 눈금자 띄울 x좌표
 overlayY=199                # 눈금자 띄울 y좌표
 
