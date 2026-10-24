@@ -88,7 +88,10 @@ struct Config {
     int avgSamples = 40;
     bool showAvg = true;
     bool showEarlyLate = true;
-    bool capture = true; // true: overlay appears in screenshots/OBS; false: exclude from capture where supported
+    bool showFastSlowCount = true;
+    int fastSlowY = 666;
+    int fastSlowThresholdMs = 0;
+    bool capture = true;
     int perfectRangeR = 0;
     int perfectRangeG = 255;
     int perfectRangeB = 120;
@@ -223,6 +226,10 @@ struct Config {
                 else if (k == "maxDetectY") cfg.maxDetectY = std::stoi(v);
                 else if (k == "overlayX") cfg.overlayX = std::stoi(v);
                 else if (k == "overlayY") cfg.overlayY = std::stoi(v);
+                else if (k == "fastSlowY") cfg.fastSlowY = std::stoi(v);
+                else if (k == "fastSlowThresholdMs" || k == "fastSlowThreshold") cfg.fastSlowThresholdMs = std::max(0, std::stoi(v));
+                else if (k == "Capture" || k == "capture") { std::string value=v; std::transform(value.begin(),value.end(),value.begin(),::tolower); cfg.capture=(value=="true"||value=="1"||value=="yes"||value=="on"); }
+                else if (k == "showFastSlowCount") { std::string value=v; std::transform(value.begin(),value.end(),value.begin(),::tolower); cfg.showFastSlowCount=(value=="true"||value=="1"||value=="yes"||value=="on"); }
                 else if (k == "maxMarkers") {
                     int val = std::stoi(v);
                     cfg.maxMarkers = (val > 1) ? val : 1; // 매크로 충돌 방지
@@ -235,11 +242,6 @@ struct Config {
                     std::string value = v;
                     std::transform(value.begin(), value.end(), value.begin(), ::tolower);
                     cfg.showAvg = (value == "true" || value == "1" || value == "yes" || value == "on");
-                }
-                else if (k == "Capture" || k == "capture") {
-                    std::string value = v;
-                    std::transform(value.begin(), value.end(), value.begin(), ::tolower);
-                    cfg.capture = (value == "true" || value == "1" || value == "yes" || value == "on");
                 }
                 else if (k == "showEarlyLate") {
                     std::string value = v;

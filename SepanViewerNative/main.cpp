@@ -61,6 +61,10 @@ int main() {
     overlay.showEarlyLate = cfg.showEarlyLate;
     overlay.capture = cfg.capture;
     SetWindowDisplayAffinity(overlay.hwnd, cfg.capture ? WDA_NONE : WDA_EXCLUDEFROMCAPTURE);
+
+    FastSlowOverlayWindow countOverlay;
+    countOverlay.init(hInst, cfg.fastSlowY, cfg.showFastSlowCount, cfg.capture, cfg.fastSlowThresholdMs);
+    countOverlay.setMode(g_activeMode.load());
     overlay.perfectRangeR = cfg.perfectRangeR;
     overlay.perfectRangeG = cfg.perfectRangeG;
     overlay.perfectRangeB = cfg.perfectRangeB;
@@ -83,6 +87,7 @@ int main() {
                     g_activeMode = m;
                     engine.reset(m);
                     overlay.clearHistory();
+                    countOverlay.setMode(m);
                     Config::saveMode(input);
                     std::cout << "\n>>> [모드 전환] " << m << "B 로 변경되었습니다!\n\n";
                 }
@@ -228,6 +233,7 @@ int main() {
                         if (res && res->error_ms().has_value()) {
                             int err = res->error_ms().value();
                             overlay.addMarker(res->lane, err);
+                            countOverlay.add(res->lane, err);
                             std::cout << "[HIT] LANE " << res->lane << " | "
                                 << (err < 0 ? "EARLY " : "LATE ") << std::abs(err) << "ms\n";
                         }

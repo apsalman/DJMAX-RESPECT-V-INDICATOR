@@ -11,6 +11,7 @@
 #include <iostream>
 #include <cmath>
 #include <vector>
+#include <map>
 #include "Config.hpp"
 
 #ifndef WDA_EXCLUDEFROMCAPTURE
@@ -39,10 +40,10 @@ public:
     bool isInteractive = false;
     bool showAvg = true;
     bool showEarlyLate = true;
-    bool capture = true;
     int perfectRangeR = 0;
     int perfectRangeG = 255;
     int perfectRangeB = 120;
+    bool capture = true;
 
     static LRESULT CALLBACK WndProc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
         if (msg == WM_LBUTTONDOWN) {
@@ -90,8 +91,6 @@ public:
         );
 
         SetLayeredWindowAttributes(hwnd, RGB(1, 2, 3), 0, LWA_COLORKEY);
-        // Capture=true: allow OBS/screenshots to include the overlay.
-        // Capture=false: ask supported Windows capture APIs to exclude this window.
         SetWindowDisplayAffinity(hwnd, capture ? WDA_NONE : WDA_EXCLUDEFROMCAPTURE);
         ShowWindow(hwnd, SW_SHOW);
     }
@@ -256,4 +255,120 @@ public:
         DeleteDC(memDC);
         ReleaseDC(hwnd, hdc);
     }
+};
+
+// Separate, click-through per-lane Fast/Slow counter overlay.
+class FastSlowOverlayWindow {
+public:
+    HWND hwnd = nullptr;
+    int y = 666;
+    bool enabled = true;
+    int thresholdMs = 0;
+    int mode = 4;
+    std::map<std::string, unsigned long long> fast, slow;
+    std::mutex mtx;
+
+    static LRESULT CALLBACK Proc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
+        auto* self = reinterpret_cast<FastSlowOverlayWindow*>(GetWindowLongPtrW(h, GWLP_USERDATA));
+        if (msg == WM_NCCREATE) {
+            auto* cs = reinterpret_cast<CREATESTRUCTW*>(lp);
+            self = static_cast<FastSlowOverlayWindow*>(cs->lpCreateParams);
+            SetWindowLongPtrW(h, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(self));
+        }
+        if (msg == WM_PAINT && self) {
+            PAINTSTRUCT ps{};
+            HDC hdc = BeginPaint(h, &ps);
+            self->paint(hdc);
+            EndPaint(h, &ps);
+            return 0;
+        }
+        if (msg == WM_ERASEBKGND) return 1;
+        if (msg == WM_DESTROY) return 0;
+        return DefWindowProcW(h, msg, wp, lp);
+    }
+
+    void init(HINSTANCE inst, int yPos, bool show, bool capture, int threshold = 0) {
+        y = yPos; enabled = show; thresholdMs = (threshold < 0 ? 0 : threshold);
+        WNDCLASSW wc{}; wc.lpfnWndProc = Proc; wc.hInstance = inst;
+        wc.lpszClassName = L"SepanFastSlowCounterClass"; wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
+        RegisterClassW(&wc);
+        int sw = GetSystemMetrics(SM_CXSCREEN);
+        hwnd = CreateWindowExW(WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
+            wc.lpszClassName, L"Sepan Fast Slow", WS_POPUP, 0, y, sw, 42, nullptr, nullptr, inst, this);
+        if (!hwnd) return;
+        SetLayeredWindowAttributes(hwnd, RGB(1, 2, 3), 0, LWA_COLORKEY);
+        SetWindowDisplayAffinity(hwnd, capture ? WDA_NONE : WDA_EXCLUDEFROMCAPTURE);
+        if (enabled) { ShowWindow(hwnd, SW_SHOWNA); InvalidateRect(hwnd, nullptr, FALSE); }
+    }
+
+    void setMode(int m) {
+        std::lock_guard<std::mutex> l(mtx);
+        mode = m; fast.clear(); slow.clear();
+        if (hwnd) InvalidateRect(hwnd, nullptr, FALSE);
+    }
+
+    void add(const std::string& lane, int err) {
+        // 5-key mode splits the center lane into 3a/3b bindings; display both under lane 3.
+        const std::string displayLane = (lane == "3a" || lane == "3b") ? "3" : lane;
+        {
+            std::lock_guard<std::mutex> l(mtx);
+            if (err < 0 && -static_cast<long long>(err) > thresholdMs) ++fast[displayLane];
+            else if (err > 0 && err > thresholdMs) ++slow[displayLane];
+        }
+        if (hwnd && enabled) InvalidateRect(hwnd, nullptr, FALSE);
+    }
+
+    void paint(HDC targetDC) {
+        RECT rc{};
+        GetClientRect(hwnd, &rc);
+        const int width = rc.right - rc.left;
+        const int height = rc.bottom - rc.top;
+        if (width <= 0 || height <= 0) return;
+
+        // Paint into an off-screen bitmap first, then copy the finished frame once.
+        // This prevents users from seeing the background-clearing and text-drawing stages.
+        HDC memDC = CreateCompatibleDC(targetDC);
+        if (!memDC) return;
+        HBITMAP memBitmap = CreateCompatibleBitmap(targetDC, width, height);
+        if (!memBitmap) { DeleteDC(memDC); return; }
+        HGDIOBJ oldBitmap = SelectObject(memDC, memBitmap);
+
+        HBRUSH bg = CreateSolidBrush(RGB(1, 2, 3));
+        FillRect(memDC, &rc, bg);
+        DeleteObject(bg);
+
+        {
+            Gdiplus::Graphics g(memDC);
+            g.SetTextRenderingHint(Gdiplus::TextRenderingHintAntiAliasGridFit);
+            Gdiplus::Font font(L"Segoe UI", 12, Gdiplus::FontStyleBold);
+            Gdiplus::SolidBrush fb(Gdiplus::Color(255, 255, 90, 90));
+            Gdiplus::SolidBrush sb(Gdiplus::Color(255, 100, 190, 255));
+            const int x4[] = {784, 904, 1024, 1144};
+            const int x5[] = {769, 864, 960, 1056, 1153};
+            const int x6[] = {758, 840, 919, 1000, 1079, 1160};
+            std::lock_guard<std::mutex> lock(mtx);
+            int n = (mode == 4 || mode == 5 || mode == 6) ? mode : 4;
+            const int* xs = mode == 4 ? x4 : (mode == 5 ? x5 : x6);
+            for (int i = 0; i < n; ++i) {
+                std::string key = std::to_string(i + 1);
+                auto fi = fast.find(key), si = slow.find(key);
+                unsigned long long f = fi == fast.end() ? 0 : fi->second;
+                unsigned long long sl = si == slow.end() ? 0 : si->second;
+                std::wstring ft = L"Fast " + std::to_wstring(f);
+                std::wstring st = L"Slow " + std::to_wstring(sl);
+                Gdiplus::RectF rf((Gdiplus::REAL)(xs[i] - 43), 1, 90, 19);
+                Gdiplus::RectF rs((Gdiplus::REAL)(xs[i] - 43), 21, 90, 19);
+                g.DrawString(ft.c_str(), -1, &font, rf, nullptr, &fb);
+                g.DrawString(st.c_str(), -1, &font, rs, nullptr, &sb);
+            }
+        }
+
+        BitBlt(targetDC, 0, 0, width, height, memDC, 0, 0, SRCCOPY);
+        SelectObject(memDC, oldBitmap);
+        DeleteObject(memBitmap);
+        DeleteDC(memDC);
+    }
+
+    // Intentionally no periodic redraw: add() and setMode() invalidate only on changes.
+    void render() {}
 };

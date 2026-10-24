@@ -1,0 +1,12 @@
+[general]
+; true = overlay is visible in screenshots/OBS captures
+; false = hide overlay from supported capture methods
+Capture=true
+
+
+; true = show per-lane and total Fast/Slow counts based on measured timing error
+; false = hide Fast/Slow counters
+showFastSlowCount=true
+
+; Only count Fast/Slow when absolute timing error is greater than this many ms. 0 = count all non-zero errors.
+fastSlowThresholdMs=0
