@@ -3,10 +3,12 @@
 ; false = hide overlay from supported capture methods
 Capture=true
 
+; true = show per-lane Fast (Blue Up Arrow) / Slow (Red Down Arrow) fadeout indicators
+; false = hide Fast/Slow arrow indicators
+showFastSlowIndicator=true
 
-; true = show per-lane and total Fast/Slow counts based on measured timing error
-; false = hide Fast/Slow counters
-showFastSlowCount=true
+; Vertical Y position of the Fast/Slow arrow indicators
+fastSlowY=666
 
-; Only count Fast/Slow when absolute timing error is greater than this many ms. 0 = count all non-zero errors.
+; Only show Fast/Slow arrow when absolute timing error is greater than this many ms. 0 = show for all non-zero errors.
 fastSlowThresholdMs=0

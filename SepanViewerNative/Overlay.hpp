@@ -12,6 +12,7 @@
 #include <cmath>
 #include <vector>
 #include <map>
+#include <algorithm>
 #include "Config.hpp"
 
 #ifndef WDA_EXCLUDEFROMCAPTURE
@@ -257,118 +258,278 @@ public:
     }
 };
 
-// Separate, click-through per-lane Fast/Slow counter overlay.
+// Separate, click-through per-lane Fast/Slow visual indicator overlay.
+enum class FastSlowType {
+    None,
+    Fast, // Blue Up Arrow (파란 위 화살표)
+    Slow  // Red Down Arrow (빨간 아래 화살표)
+};
+
+struct LaneIndicatorState {
+    FastSlowType type = FastSlowType::None;
+    std::chrono::steady_clock::time_point hitTime{};
+};
+
 class FastSlowOverlayWindow {
 public:
     HWND hwnd = nullptr;
     int y = 666;
+    int width = 0;
+    int height = 64;
     bool enabled = true;
     int thresholdMs = 0;
     int mode = 4;
-    std::map<std::string, unsigned long long> fast, slow;
-    std::mutex mtx;
 
+    static constexpr int FADE_DURATION_MS = 380; // Total display & fadeout time in ms
+
+private:
+    std::mutex mtx;
+    LaneIndicatorState lanes_[6]; // up to 6 lanes (0 to 5)
+    bool hasDrawn_ = false;
+
+    HDC hdcScreen_ = nullptr;
+    HDC hdcMem_ = nullptr;
+    HBITMAP hBmp_ = nullptr;
+    HGDIOBJ oldBmp_ = nullptr;
+    void* pBits_ = nullptr;
+
+public:
     static LRESULT CALLBACK Proc(HWND h, UINT msg, WPARAM wp, LPARAM lp) {
-        auto* self = reinterpret_cast<FastSlowOverlayWindow*>(GetWindowLongPtrW(h, GWLP_USERDATA));
-        if (msg == WM_NCCREATE) {
-            auto* cs = reinterpret_cast<CREATESTRUCTW*>(lp);
-            self = static_cast<FastSlowOverlayWindow*>(cs->lpCreateParams);
-            SetWindowLongPtrW(h, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(self));
-        }
-        if (msg == WM_PAINT && self) {
-            PAINTSTRUCT ps{};
-            HDC hdc = BeginPaint(h, &ps);
-            self->paint(hdc);
-            EndPaint(h, &ps);
-            return 0;
-        }
         if (msg == WM_ERASEBKGND) return 1;
         if (msg == WM_DESTROY) return 0;
         return DefWindowProcW(h, msg, wp, lp);
     }
 
     void init(HINSTANCE inst, int yPos, bool show, bool capture, int threshold = 0) {
-        y = yPos; enabled = show; thresholdMs = (threshold < 0 ? 0 : threshold);
-        WNDCLASSW wc{}; wc.lpfnWndProc = Proc; wc.hInstance = inst;
-        wc.lpszClassName = L"SepanFastSlowCounterClass"; wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
+        y = yPos;
+        enabled = show;
+        thresholdMs = (threshold < 0 ? 0 : threshold);
+        width = GetSystemMetrics(SM_CXSCREEN);
+        height = 64;
+
+        WNDCLASSW wc{};
+        wc.lpfnWndProc = Proc;
+        wc.hInstance = inst;
+        wc.lpszClassName = L"SepanFastSlowIndicatorClass";
+        wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
         RegisterClassW(&wc);
-        int sw = GetSystemMetrics(SM_CXSCREEN);
-        hwnd = CreateWindowExW(WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
-            wc.lpszClassName, L"Sepan Fast Slow", WS_POPUP, 0, y, sw, 42, nullptr, nullptr, inst, this);
+
+        hwnd = CreateWindowExW(
+            WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
+            wc.lpszClassName, L"Sepan Fast Slow Indicator", WS_POPUP,
+            0, y, width, height, nullptr, nullptr, inst, nullptr);
+
         if (!hwnd) return;
-        SetLayeredWindowAttributes(hwnd, RGB(1, 2, 3), 0, LWA_COLORKEY);
+
         SetWindowDisplayAffinity(hwnd, capture ? WDA_NONE : WDA_EXCLUDEFROMCAPTURE);
-        if (enabled) { ShowWindow(hwnd, SW_SHOWNA); InvalidateRect(hwnd, nullptr, FALSE); }
+
+        // 32-bit PARGB DIB for per-pixel alpha transparency via UpdateLayeredWindow
+        BITMAPINFO bi{};
+        bi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+        bi.bmiHeader.biWidth = width;
+        bi.bmiHeader.biHeight = -height; // top-down
+        bi.bmiHeader.biPlanes = 1;
+        bi.bmiHeader.biBitCount = 32;
+        bi.bmiHeader.biCompression = BI_RGB;
+
+        hdcScreen_ = GetDC(nullptr);
+        hdcMem_ = CreateCompatibleDC(hdcScreen_);
+        hBmp_ = CreateDIBSection(hdcMem_, &bi, DIB_RGB_COLORS, &pBits_, nullptr, 0);
+        if (hBmp_ && hdcMem_) {
+            oldBmp_ = SelectObject(hdcMem_, hBmp_);
+        }
+
+        clearSurface();
+
+        if (enabled) {
+            ShowWindow(hwnd, SW_SHOWNA);
+        }
     }
 
     void setMode(int m) {
         std::lock_guard<std::mutex> l(mtx);
-        mode = m; fast.clear(); slow.clear();
-        if (hwnd) InvalidateRect(hwnd, nullptr, FALSE);
+        mode = m;
+        for (int i = 0; i < 6; ++i) {
+            lanes_[i] = {};
+        }
+        hasDrawn_ = true; // Clear on next render frame
     }
 
     void add(const std::string& lane, int err) {
         // 5-key mode splits the center lane into 3a/3b bindings; display both under lane 3.
         const std::string displayLane = (lane == "3a" || lane == "3b") ? "3" : lane;
-        {
-            std::lock_guard<std::mutex> l(mtx);
-            if (err < 0 && -static_cast<long long>(err) > thresholdMs) ++fast[displayLane];
-            else if (err > 0 && err > thresholdMs) ++slow[displayLane];
+        int laneIdx = -1;
+        try {
+            laneIdx = std::stoi(displayLane) - 1;
+        } catch (...) {
+            return;
         }
-        if (hwnd && enabled) InvalidateRect(hwnd, nullptr, FALSE);
+
+        if (laneIdx < 0 || laneIdx >= 6) return;
+
+        FastSlowType hitType = FastSlowType::None;
+        if (err < 0 && -static_cast<long long>(err) > thresholdMs) {
+            hitType = FastSlowType::Fast; // Fast -> Blue Up Arrow
+        } else if (err > 0 && err > thresholdMs) {
+            hitType = FastSlowType::Slow; // Slow -> Red Down Arrow
+        }
+
+        if (hitType != FastSlowType::None) {
+            std::lock_guard<std::mutex> l(mtx);
+            lanes_[laneIdx].type = hitType;
+            lanes_[laneIdx].hitTime = std::chrono::steady_clock::now();
+        }
     }
 
-    void paint(HDC targetDC) {
-        RECT rc{};
-        GetClientRect(hwnd, &rc);
-        const int width = rc.right - rc.left;
-        const int height = rc.bottom - rc.top;
-        if (width <= 0 || height <= 0) return;
+    void render() {
+        if (!hwnd || !enabled || !pBits_ || !hdcMem_ || !hdcScreen_) return;
 
-        // Paint into an off-screen bitmap first, then copy the finished frame once.
-        // This prevents users from seeing the background-clearing and text-drawing stages.
-        HDC memDC = CreateCompatibleDC(targetDC);
-        if (!memDC) return;
-        HBITMAP memBitmap = CreateCompatibleBitmap(targetDC, width, height);
-        if (!memBitmap) { DeleteDC(memDC); return; }
-        HGDIOBJ oldBitmap = SelectObject(memDC, memBitmap);
+        const auto now = std::chrono::steady_clock::now();
+        const int x4[] = { 784, 904, 1024, 1144 };
+        const int x5[] = { 769, 864, 960, 1056, 1153 };
+        const int x6[] = { 758, 840, 919, 1000, 1079, 1160 };
 
-        HBRUSH bg = CreateSolidBrush(RGB(1, 2, 3));
-        FillRect(memDC, &rc, bg);
-        DeleteObject(bg);
+        bool anyActive = false;
+        int nLanes = (mode == 4 || mode == 5 || mode == 6) ? mode : 4;
+        const int* xs = (mode == 4 ? x4 : (mode == 5 ? x5 : x6));
+
+        struct ActiveIndicator {
+            int cx;
+            float curY;
+            int alpha;
+            FastSlowType type;
+        };
+        std::vector<ActiveIndicator> activeList;
 
         {
-            Gdiplus::Graphics g(memDC);
-            g.SetTextRenderingHint(Gdiplus::TextRenderingHintAntiAliasGridFit);
-            Gdiplus::Font font(L"Segoe UI", 12, Gdiplus::FontStyleBold);
-            Gdiplus::SolidBrush fb(Gdiplus::Color(255, 255, 90, 90));
-            Gdiplus::SolidBrush sb(Gdiplus::Color(255, 100, 190, 255));
-            const int x4[] = {784, 904, 1024, 1144};
-            const int x5[] = {769, 864, 960, 1056, 1153};
-            const int x6[] = {758, 840, 919, 1000, 1079, 1160};
-            std::lock_guard<std::mutex> lock(mtx);
-            int n = (mode == 4 || mode == 5 || mode == 6) ? mode : 4;
-            const int* xs = mode == 4 ? x4 : (mode == 5 ? x5 : x6);
-            for (int i = 0; i < n; ++i) {
-                std::string key = std::to_string(i + 1);
-                auto fi = fast.find(key), si = slow.find(key);
-                unsigned long long f = fi == fast.end() ? 0 : fi->second;
-                unsigned long long sl = si == slow.end() ? 0 : si->second;
-                std::wstring ft = L"Fast " + std::to_wstring(f);
-                std::wstring st = L"Slow " + std::to_wstring(sl);
-                Gdiplus::RectF rf((Gdiplus::REAL)(xs[i] - 43), 1, 90, 19);
-                Gdiplus::RectF rs((Gdiplus::REAL)(xs[i] - 43), 21, 90, 19);
-                g.DrawString(ft.c_str(), -1, &font, rf, nullptr, &fb);
-                g.DrawString(st.c_str(), -1, &font, rs, nullptr, &sb);
+            std::lock_guard<std::mutex> l(mtx);
+            for (int i = 0; i < nLanes; ++i) {
+                if (lanes_[i].type == FastSlowType::None) continue;
+
+                auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(now - lanes_[i].hitTime).count();
+                if (elapsedMs < FADE_DURATION_MS) {
+                    anyActive = true;
+                    float progress = static_cast<float>(elapsedMs) / static_cast<float>(FADE_DURATION_MS);
+
+                    // Maintain full opacity for the first 80ms, then smoothly fade out to 0
+                    float alphaFactor = 1.0f;
+                    if (elapsedMs > 80) {
+                        alphaFactor = 1.0f - static_cast<float>(elapsedMs - 80) / static_cast<float>(FADE_DURATION_MS - 80);
+                    }
+                    int alpha = std::clamp(static_cast<int>(255.0f * alphaFactor), 0, 255);
+
+                    // Subtle directional float: Fast floats up (-7px), Slow floats down (+7px)
+                    float drift = (lanes_[i].type == FastSlowType::Fast) ? (-7.0f * progress) : (+7.0f * progress);
+                    float cy = (height / 2.0f) + drift;
+
+                    activeList.push_back({ xs[i], cy, alpha, lanes_[i].type });
+                } else {
+                    lanes_[i].type = FastSlowType::None; // Expired
+                }
             }
         }
 
-        BitBlt(targetDC, 0, 0, width, height, memDC, 0, 0, SRCCOPY);
-        SelectObject(memDC, oldBitmap);
-        DeleteObject(memBitmap);
-        DeleteDC(memDC);
+        if (!anyActive) {
+            if (hasDrawn_) {
+                clearSurface();
+                hasDrawn_ = false;
+            }
+            return;
+        }
+
+        hasDrawn_ = true;
+
+        // Render directly into 32-bit PARGB bitmap for per-pixel alpha blending
+        Gdiplus::Bitmap bmp(width, height, width * 4, PixelFormat32bppPARGB, static_cast<BYTE*>(pBits_));
+        Gdiplus::Graphics g(&bmp);
+        g.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
+        g.Clear(Gdiplus::Color(0, 0, 0, 0));
+
+        for (const auto& ind : activeList) {
+            if (ind.alpha <= 0) continue;
+
+            Gdiplus::Color fillColor;
+            Gdiplus::PointF pts[7];
+
+            if (ind.type == FastSlowType::Fast) {
+                // Blue Up Arrow (파란 위 화살표)
+                fillColor = Gdiplus::Color(ind.alpha, 45, 160, 255);
+
+                pts[0] = Gdiplus::PointF(static_cast<float>(ind.cx), ind.curY - 13.0f);      // Top tip
+                pts[1] = Gdiplus::PointF(static_cast<float>(ind.cx + 14), ind.curY - 1.0f);  // Right wing
+                pts[2] = Gdiplus::PointF(static_cast<float>(ind.cx + 6), ind.curY - 1.0f);   // Right inner neck
+                pts[3] = Gdiplus::PointF(static_cast<float>(ind.cx + 6), ind.curY + 12.0f);  // Right bottom
+                pts[4] = Gdiplus::PointF(static_cast<float>(ind.cx - 6), ind.curY + 12.0f);  // Left bottom
+                pts[5] = Gdiplus::PointF(static_cast<float>(ind.cx - 6), ind.curY - 1.0f);   // Left inner neck
+                pts[6] = Gdiplus::PointF(static_cast<float>(ind.cx - 14), ind.curY - 1.0f);  // Left wing
+            } else {
+                // Red Down Arrow (빨간 아래 화살표)
+                fillColor = Gdiplus::Color(ind.alpha, 255, 60, 60);
+
+                pts[0] = Gdiplus::PointF(static_cast<float>(ind.cx), ind.curY + 13.0f);      // Bottom tip
+                pts[1] = Gdiplus::PointF(static_cast<float>(ind.cx + 14), ind.curY + 1.0f);  // Right wing
+                pts[2] = Gdiplus::PointF(static_cast<float>(ind.cx + 6), ind.curY + 1.0f);   // Right inner neck
+                pts[3] = Gdiplus::PointF(static_cast<float>(ind.cx + 6), ind.curY - 12.0f);  // Right top
+                pts[4] = Gdiplus::PointF(static_cast<float>(ind.cx - 6), ind.curY - 12.0f);  // Left top
+                pts[5] = Gdiplus::PointF(static_cast<float>(ind.cx - 6), ind.curY + 1.0f);   // Left inner neck
+                pts[6] = Gdiplus::PointF(static_cast<float>(ind.cx - 14), ind.curY + 1.0f);  // Left wing
+            }
+
+            Gdiplus::SolidBrush fillBrush(fillColor);
+            Gdiplus::Pen outlinePen(Gdiplus::Color(ind.alpha, 0, 0, 0), 2.0f);
+            outlinePen.SetLineJoin(Gdiplus::LineJoinRound);
+
+            g.FillPolygon(&fillBrush, pts, 7);
+            g.DrawPolygon(&outlinePen, pts, 7);
+        }
+
+        POINT ptSrc{ 0, 0 };
+        SIZE sizeWnd{ width, height };
+        POINT ptDst{ 0, y };
+        BLENDFUNCTION bf{};
+        bf.BlendOp = AC_SRC_OVER;
+        bf.BlendFlags = 0;
+        bf.SourceConstantAlpha = 255;
+        bf.AlphaFormat = AC_SRC_ALPHA;
+
+        UpdateLayeredWindow(hwnd, hdcScreen_, &ptDst, &sizeWnd, hdcMem_, &ptSrc, 0, &bf, ULW_ALPHA);
     }
 
-    // Intentionally no periodic redraw: add() and setMode() invalidate only on changes.
-    void render() {}
+    void clearSurface() {
+        if (!hwnd || !pBits_ || !hdcMem_ || !hdcScreen_) return;
+        Gdiplus::Bitmap bmp(width, height, width * 4, PixelFormat32bppPARGB, static_cast<BYTE*>(pBits_));
+        Gdiplus::Graphics g(&bmp);
+        g.Clear(Gdiplus::Color(0, 0, 0, 0));
+
+        POINT ptSrc{ 0, 0 };
+        SIZE sizeWnd{ width, height };
+        POINT ptDst{ 0, y };
+        BLENDFUNCTION bf{};
+        bf.BlendOp = AC_SRC_OVER;
+        bf.BlendFlags = 0;
+        bf.SourceConstantAlpha = 255;
+        bf.AlphaFormat = AC_SRC_ALPHA;
+
+        UpdateLayeredWindow(hwnd, hdcScreen_, &ptDst, &sizeWnd, hdcMem_, &ptSrc, 0, &bf, ULW_ALPHA);
+    }
+
+    ~FastSlowOverlayWindow() {
+        if (hwnd) {
+            DestroyWindow(hwnd);
+            hwnd = nullptr;
+        }
+        if (hdcMem_) {
+            if (oldBmp_) SelectObject(hdcMem_, oldBmp_);
+            DeleteDC(hdcMem_);
+            hdcMem_ = nullptr;
+        }
+        if (hBmp_) {
+            DeleteObject(hBmp_);
+            hBmp_ = nullptr;
+        }
+        if (hdcScreen_) {
+            ReleaseDC(nullptr, hdcScreen_);
+            hdcScreen_ = nullptr;
+        }
+    }
 };

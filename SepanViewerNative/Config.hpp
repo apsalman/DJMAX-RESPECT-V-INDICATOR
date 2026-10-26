@@ -229,7 +229,7 @@ struct Config {
                 else if (k == "fastSlowY") cfg.fastSlowY = std::stoi(v);
                 else if (k == "fastSlowThresholdMs" || k == "fastSlowThreshold") cfg.fastSlowThresholdMs = std::max(0, std::stoi(v));
                 else if (k == "Capture" || k == "capture") { std::string value=v; std::transform(value.begin(),value.end(),value.begin(),::tolower); cfg.capture=(value=="true"||value=="1"||value=="yes"||value=="on"); }
-                else if (k == "showFastSlowCount") { std::string value=v; std::transform(value.begin(),value.end(),value.begin(),::tolower); cfg.showFastSlowCount=(value=="true"||value=="1"||value=="yes"||value=="on"); }
+                else if (k == "showFastSlowCount" || k == "showFastSlowIndicator" || k == "showFastSlow") { std::string value=v; std::transform(value.begin(),value.end(),value.begin(),::tolower); cfg.showFastSlowCount=(value=="true"||value=="1"||value=="yes"||value=="on"); }
                 else if (k == "maxMarkers") {
                     int val = std::stoi(v);
                     cfg.maxMarkers = (val > 1) ? val : 1; // 매크로 충돌 방지
@@ -282,6 +282,7 @@ struct Config {
             << "  - [설정] 평균 계산 타격수: 최근 " << cfg.avgSamples << "타\n"
             << "  - [설정] AVG 표시: " << (cfg.showAvg ? "ON" : "OFF") << "\n"
             << "  - [설정] Early/Late 표시: " << (cfg.showEarlyLate ? "ON" : "OFF") << "\n"
+            << "  - [설정] Fast/Slow 화살표 표시: " << (cfg.showFastSlowCount ? "ON" : "OFF") << "\n"
             << "  - [설정] ±42ms 경계 색상 RGB: " << cfg.perfectRangeR << "," << cfg.perfectRangeG << "," << cfg.perfectRangeB << "\n";
 
         if (cfg.overlayX != -1 && cfg.overlayY != -1) {

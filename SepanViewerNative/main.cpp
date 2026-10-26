@@ -110,6 +110,7 @@ int main() {
             bool ctrlPressed = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
             overlay.setInteractive(ctrlPressed);
             overlay.render();
+            countOverlay.render();
             std::this_thread::sleep_for(std::chrono::milliseconds(16));
         }
         });
