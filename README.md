@@ -82,26 +82,53 @@
 
 ```ini
 [general]
-fps=24                      # 화면 캡처 빈도 (컴터가 좋으면 높일수록 판정 정확해지긴 함)
-globalOffset=-30            # 지연 보정 오프셋 (판정 오프셋 설정하는건데 42ms 넘어서 얼리,레이트가 떴는데도 디맥에서 100% 면 알아서 맞춰서 보정하십쇼)
-maxWindow=150               # 판정 허용 범위 (ms)
-mode=4                      # 기본 시작 모드 (4, 5, 6)
-judgeY=750                  # 디맥 1080p 기준 판정선 Y좌표
-noteThreshold=0.75          # 노트 인식 민감도 (기본 0.75, 낮출수록 관대함. 너무 낮으면 프로그램이 헛 것을 보고 노트가 없는데 판정을 할 수도 있음.)
-maxDetectY=610              # 판정 이펙트 간섭을 피하기 위한 최대 검출 높이
-maxMarkers=30               # 눈금자에 동시에 남길 최근 판정 마커 잔상 개수
-avgSamples=60               # 황금 삼각형(평균 오차) 산출에 반영할 최근 타격 횟수
-triggerColor=default        # 트리거 키 색상 (색맹, 색약으로 변경된 색상은 RGB 색상 추출해서 변경하십쇼)
-sideColor=default           # 사이드 키 색상 (마찬가지)
-showAVG=false               # 평균 ms 우측 상단에 표시 true 면 표시 false 면 미표시
-showEarlyLate=true          # 위에 Early 0ms Late 0ms 표시
-perfectRangeColor=0,255,120 # 퍼펙트 판정 범위 색상 지금 이건 초록색 일 듯 아마도
-Capture=true                # OBS 나 스크린샷과 같은 캡처도구에 오버레이가 캡처되도록 처리
-showFastSlowCount=true      # 레인별 Fast Slow 개수 오버레이 표시
-fastSlowY=690               # 패슬 오버레이 y좌표 위치(x는 키별로 고정임)
-fastSlowThresholdMs=40      # 패슬 개수 카운트할 ms 차이(42는 노멀, 21은 하판, 10은 맥저정도일 듯. 우수리 떼고)
-overlayX=809                # 눈금자 띄울 x좌표
-overlayY=199                # 눈금자 띄울 y좌표
+fps=60
+globalOffset=-30
+; Ordinary match window. A unique, well-observed past note may use bounded late recovery.
+maxWindow=150
+mode=4
+; Template set: cap{mode}_{blue|white}_{note}.png. Restart after changing.
+; Use note=default for legacy unsuffixed cap{mode}_{color}.png files.
+note=bluearchive
+; All Y values below are pixels local to the captured ROI, increasing downward.
+judgeY=750
+noteThreshold=0.75
+; Last corrected note-anchor Y to detect (not a timing offset).
+maxDetectY=690
+; Keep detections at least this far above judgeY to avoid judgment effects.
+detectionMarginY=60
+; Add to raw template-top Y. Positive moves the note down; 0 preserves old normal reference.
+normalNoteAnchorY=0
+; Add to side edge Y. -10 preserves the previous side-note reference.
+sideNoteAnchorY=-10
+; Avoid MAX judgment text/effects around Y=600 for wide side blocks.
+sideMaxDetectY=580
+maxMarkers=30
+avgSamples=60
+triggerColor=default
+sideColor=default
+showAVG=true
+showEarlyLate=true
+; Analysis panel + per-input observation CSVs. Restart after changing.
+; true: per-key debug panel + detailed ruler labels/logs; false: centered EARLY/LATE only.
+debugmode=false
+; Legacy fallback when debugmode is absent. Explicit debugmode always wins.
+showLaneDebug=true
+; Fixed thick lane arrows: EARLY up / LATE down, 500ms fade. Independent of debugmode.
+laneArrows=true
+; Show arrows only when absolute timing error strictly exceeds this many milliseconds.
+; 0: all nonzero errors; example 41.666: only errors beyond +/-41.666ms.
+laneArrowThresholdMs=41.666
+; Arrow center Y in the game client at reference 1920x1080 (not ruler/OBS coordinates).
+laneArrowY=450
+; Separate panel, outside the default gear capture (X=720..1199).
+laneDebugX=1301
+laneDebugY=0
+perfectRangeColor=0,255,120
+; Game-window-only capture excludes this overlay even when it covers the gear.
+; OBS: capture Sepan Overlay separately as a Window Capture source.
+overlayX=809
+overlayY=199
 
 [4LANE]
 1=s
@@ -113,7 +140,30 @@ R=RAlt
 A=LShift
 B=RShift
 
-# 5LANE, 6LANE 키 매핑도 동일하게 지정 가능 (세미콜론 ';' 및 따옴표 '\'' 지원)
+[5LANE]
+1=a
+2=s
+3a=d
+3b=l
+4=;
+5='
+L=Space
+R=RAlt
+A=LShift
+B=RShift
+
+[6LANE]
+1=a
+2=s
+3=d
+4=l
+5=;
+6='
+L=Space
+R=RAlt
+A=LShift
+B=RShift
+
 ```
 
 ---
