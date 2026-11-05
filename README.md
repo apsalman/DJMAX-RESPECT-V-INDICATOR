@@ -3,7 +3,6 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Platform-Windows-blue?logo=windows" alt="Platform" />
   <img src="https://img.shields.io/badge/Language-C++17-00599C?logo=c%2B%2B" alt="Language" />
-  <img src="https://img.shields.io/badge/Capture-DXGI_Desktop_Duplication_(DirectX_11)-9cf?logo=directx" alt="Capture" />
   <img src="https://img.shields.io/badge/Overlay-Direct_GDI%2B-brightgreen" alt="Overlay" />
   <img src="https://img.shields.io/badge/Target-DJMAX_RESPECT_V-orange" alt="Target Game" />
   <img src="https://img.shields.io/badge/RAM_Usage-~18MB-success" alt="RAM Usage" />
