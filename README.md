@@ -45,6 +45,7 @@
 | **~ v1.1.1** | **DXGI Desktop Duplication(DirectX 11)** 기반 화면 캡처 |
 | **v1.1.2** | **Windows Graphics Capture(WGC)** 기반 **게임 창 전용 캡처**로 전환. 게임 창(HWND)만 캡처하고 기어 ROI만 복사하여, 오버레이·데스크톱이 인식에 섞이지 않습니다. 단, WGC 특성상 **Windows 11 미만에서는 캡처 시 노란 테두리(yellow border)** 가 표시됩니다([제거 방법](#-windows-11-미만-노란-테두리) 참고). |
 | **v1.1.3** | **[beatscope](https://github.com/Anchovia/beatscope) charts 데이터 기반 판정** 추가. 플레이 중 입력으로 곡을 식별하면 이미지 판정을 멈추고, 오프셋만 보정해 charts 데이터로 판정합니다. 관련 `config.ini` 항목과 `F1` 단축키가 추가되었습니다. |
+| **v1.1.4** | **콘솔창 + 눈금자에서 → 메인UI + 눈금자로 UI를 개편하였습니다. 이제는 모드 설정, 레인별 Fast/Slow 를 UI 로 실시간 확인이 가능합니다. |
 
 ---
 
